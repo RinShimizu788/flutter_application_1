@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 void main() {
   runApp(const MyApp());
@@ -64,7 +65,9 @@ class _StudyTimerPageState extends State<StudyTimerPage> {
   Timer? timer;
   bool isRunning = false;
 
-  String selectedSubject = 'アルゴリズム';
+  final AudioPlayer _player = AudioPlayer();
+
+  String selectedSubject = '情報';
   final TextEditingController memoController = TextEditingController();
 
   List<StudyLog> logs = [];
@@ -78,8 +81,18 @@ class _StudyTimerPageState extends State<StudyTimerPage> {
   @override
   void dispose() {
     timer?.cancel();
+    _player.dispose();
     memoController.dispose();
     super.dispose();
+  }
+
+  Future<void> playBgm() async {
+    await _player.setReleaseMode(ReleaseMode.loop);
+    await _player.play(AssetSource('bgm.mp3'));
+  }
+
+  Future<void> stopBgm() async {
+    await _player.stop();
   }
 
   void startTimer() {
@@ -88,6 +101,8 @@ class _StudyTimerPageState extends State<StudyTimerPage> {
     setState(() {
       isRunning = true;
     });
+
+    playBgm();
 
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() {
@@ -98,12 +113,16 @@ class _StudyTimerPageState extends State<StudyTimerPage> {
 
   void stopTimer() {
     timer?.cancel();
+    stopBgm();
+
     setState(() {
       isRunning = false;
     });
   }
 
   Future<void> saveLog() async {
+    stopBgm();
+
     final minutes = elapsedSeconds ~/ 60;
     if (minutes == 0) return;
 
@@ -152,15 +171,12 @@ class _StudyTimerPageState extends State<StudyTimerPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // タイマー表示
             Text(
               '${elapsedSeconds ~/ 60} 分 ${elapsedSeconds % 60} 秒',
               style: const TextStyle(fontSize: 32),
             ),
-
             const SizedBox(height: 10),
 
-            // 科目選択
             DropdownButton<String>(
               value: selectedSubject,
               items: ['情報', '数学', '英語', 'その他']
@@ -176,7 +192,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> {
               },
             ),
 
-            // ボタン
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -192,7 +207,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> {
               ],
             ),
 
-            // メモ
             TextField(
               controller: memoController,
               decoration: const InputDecoration(
@@ -216,7 +230,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> {
 
             const SizedBox(height: 10),
 
-            // 履歴表示
             Expanded(
               child: ListView.builder(
                 itemCount: logs.length,
@@ -231,12 +244,9 @@ class _StudyTimerPageState extends State<StudyTimerPage> {
                         log.memo.isNotEmpty ? log.memo : '（メモなし）',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      subtitle: Text(
-                        '${log.subject} / ${log.minutes}分',
-                      ),
-                      trailing: Text(
-                        '${log.date.month}/${log.date.day}',
-                      ),
+                      subtitle: Text('${log.subject} / ${log.minutes}分'),
+                      trailing:
+                          Text('${log.date.month}/${log.date.day}'),
                     ),
                   );
                 },
