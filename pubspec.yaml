@@ -32,7 +32,8 @@ dependencies:
     sdk: flutter
   shared_preferences: ^2.2.2
   audioplayers: ^6.0.0 #追加した！
-
+  
+  google_fonts: ^6.1.0
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
@@ -61,7 +62,11 @@ flutter:
 
 
   assets:
-    - assets/bgm.mp3
+    - assets/bgm1.mp3
+    - assets/bgm2.m4a
+    - assets/idle.mp3
+    - assets/cover1.jpg
+    - assets/cover2.jpg
 
 
   # To add assets to your application, add an assets section, like this:
