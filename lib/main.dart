@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   runApp(const MyApp());
 }
 
@@ -50,6 +54,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        brightness: Brightness.dark,
         useMaterial3: true,
         colorSchemeSeed: Colors.blue,
       ),
@@ -67,7 +72,6 @@ class StudyTimerPage extends StatefulWidget {
 
 class _StudyTimerPageState extends State<StudyTimerPage>
     with SingleTickerProviderStateMixin {
-
   int elapsedSeconds = 0;
   int goalSeconds = 1500;
   Timer? timer;
@@ -131,6 +135,7 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     await player.stop();
     await player.setReleaseMode(ReleaseMode.loop);
     await player.play(AssetSource(currentFile));
+    await player.setVolume(0.8);
   }
 
   Future<void> playIdleBgm() async {
@@ -203,27 +208,20 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     });
   }
 
-  /// 💿 CD（中央に画像）
   Widget buildCDWithProgress() {
     return SizedBox(
-      width: 180,
-      height: 180,
+      width: 120,
+      height: 120,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          /// 進捗リング
-          CircularProgressIndicator(
-            value: progress,
-            strokeWidth: 6,
-            backgroundColor: Colors.grey.shade300,
-          ),
+          CircularProgressIndicator(value: progress),
 
-          /// 外側CD
           RotationTransition(
             turns: _rotation,
             child: Container(
-              width: 140,
-              height: 140,
+              width: 100,
+              height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: LinearGradient(
@@ -231,25 +229,26 @@ class _StudyTimerPageState extends State<StudyTimerPage>
                       ? [Colors.black, Colors.blueGrey, Colors.black]
                       : [Colors.grey, Colors.black26],
                 ),
+                boxShadow: isRunning
+                    ? [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.6),
+                          blurRadius: 20,
+                        )
+                      ]
+                    : [],
               ),
             ),
           ),
 
-          /// 中央画像（ジャケット）
           RotationTransition(
             turns: _rotation,
-            child: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: ClipOval(
-                child: Image.asset(
-                  'assets/$currentImage',
-                  fit: BoxFit.cover,
-                ),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/$currentImage',
+                width: 45,
+                height: 45,
+                fit: BoxFit.cover,
               ),
             ),
           ),
@@ -258,25 +257,15 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     );
   }
 
-  /// 🎵 プレイヤー
   Widget buildPlayerControls() {
     return Column(
       children: [
-        Text(
-          currentTrack,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-
-        const SizedBox(height: 10),
-
+        Text(currentTrack),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
-              icon: const Icon(Icons.skip_previous, size: 36),
+              icon: const Icon(Icons.skip_previous),
               onPressed: () {
                 setState(() {
                   selectedTrackIndex =
@@ -286,17 +275,12 @@ class _StudyTimerPageState extends State<StudyTimerPage>
                 if (isRunning) playStudyBgm();
               },
             ),
-
             IconButton(
-              icon: Icon(
-                isRunning ? Icons.pause : Icons.play_arrow,
-                size: 40,
-              ),
+              icon: Icon(isRunning ? Icons.pause : Icons.play_arrow),
               onPressed: isRunning ? stopTimer : startTimer,
             ),
-
             IconButton(
-              icon: const Icon(Icons.skip_next, size: 36),
+              icon: const Icon(Icons.skip_next),
               onPressed: () {
                 setState(() {
                   selectedTrackIndex =
@@ -311,106 +295,187 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     );
   }
 
+  Widget glassCard({required Widget child}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.2)),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
+    const double contentWidth = 410;
 
-            /// タイマー（そのまま）
-            Card(
-              elevation: 6,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 26,
-                  horizontal: 32,
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      'StudyTimer',
-                      style: GoogleFonts.montserrat(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF1E1E2F),
+                Color(0xFF3A3A5A),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 80, 16, 16),
+            child: Column(
+              children: [
+                /// ⭐ メインカード
+                Center(
+                  child: SizedBox(
+                    width: contentWidth,
+                    child: glassCard(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.center,
+                            children: [
+                              buildCDWithProgress(),
+                              const SizedBox(width: 20),
+                              Column(
+                                children: [
+                                  Text(
+                                    'StudyTimer',
+                                    style: GoogleFonts.montserrat(
+                                        fontSize: 16),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    '${elapsedSeconds ~/ 60} 分 ${elapsedSeconds % 60} 秒',
+                                    style: const TextStyle(
+                                      fontSize: 32,
+                                      fontWeight:
+                                          FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          buildPlayerControls(),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Text(
-                      '${elapsedSeconds ~/ 60} 分 ${elapsedSeconds % 60} 秒',
-                      style: const TextStyle(
-                        fontSize: 42,
-                        fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                /// ⭐ 教科ボタン
+                Center(
+                  child: SizedBox(
+                    width: contentWidth,
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 10,
+                      children: subjectIcons.entries.map((e) {
+                        return ChoiceChip(
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(e.value, size: 18),
+                              const SizedBox(width: 6),
+                              Text(e.key),
+                            ],
+                          ),
+                          selected: selectedSubject == e.key,
+                          onSelected: (_) {
+                            setState(
+                                () => selectedSubject = e.key);
+                          },
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                /// ⭐ 入力欄
+                Center(
+                  child: SizedBox(
+                    width: contentWidth,
+                    child: TextField(
+                      controller: memoController,
+                      decoration: const InputDecoration(
+                        labelText: '学習内容',
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
 
-            const SizedBox(height: 20),
+                const SizedBox(height: 10),
 
-            buildCDWithProgress(),
-
-            const SizedBox(height: 20),
-
-            buildPlayerControls(),
-
-            const SizedBox(height: 20),
-
-            /// 教科
-            Wrap(
-              spacing: 10,
-              children: subjectIcons.entries.map((e) {
-                return ChoiceChip(
-                  label: Text(e.key),
-                  selected: selectedSubject == e.key,
-                  onSelected: (_) {
-                    setState(() => selectedSubject = e.key);
-                  },
-                );
-              }).toList(),
-            ),
-
-            const SizedBox(height: 10),
-
-            TextField(
-              controller: memoController,
-              decoration: const InputDecoration(
-                labelText: '学習内容',
-                border: OutlineInputBorder(),
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            ElevatedButton(
-              onPressed: saveLog,
-              child: const Text('保存'),
-            ),
-
-            Expanded(
-              child: ListView.builder(
-                itemCount: logs.length,
-                itemBuilder: (_, i) {
-                  final log = logs[i];
-                  return ListTile(
-                    title: Text(
-                      log.memo.isNotEmpty ? log.memo : '（メモなし）',
+                /// ⭐ 保存ボタン
+                Center(
+                  child: SizedBox(
+                    width: contentWidth,
+                    child: ElevatedButton(
+                      onPressed: saveLog,
+                      child: const Text('保存'),
                     ),
-                    subtitle:
-                        Text('${log.subject} / ${log.minutes}分'),
-                  );
-                },
-              ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                /// ⭐ 履歴
+                Expanded(
+                  child: Center(
+                    child: SizedBox(
+                      width: contentWidth,
+                      child: ListView.builder(
+                        itemCount: logs.length,
+                        itemBuilder: (_, i) {
+                          final log = logs[i];
+                          return Card(
+                            color:
+                                Colors.white.withOpacity(0.05),
+                            child: ListTile(
+                              title: Text(
+                                log.memo.isNotEmpty
+                                    ? log.memo
+                                    : '（メモなし）',
+                              ),
+                              subtitle: Text(
+                                  '${log.subject} / ${log.minutes}分'),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
