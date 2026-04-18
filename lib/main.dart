@@ -72,6 +72,7 @@ class StudyTimerPage extends StatefulWidget {
 
 class _StudyTimerPageState extends State<StudyTimerPage>
     with SingleTickerProviderStateMixin {
+  double volume = 0.8;
   int elapsedSeconds = 0;
   int goalSeconds = 1500;
   Timer? timer;
@@ -135,14 +136,14 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     await player.stop();
     await player.setReleaseMode(ReleaseMode.loop);
     await player.play(AssetSource(currentFile));
-    await player.setVolume(0.8);
+    await player.setVolume(volume);
   }
 
   Future<void> playIdleBgm() async {
     await player.stop();
     await player.setReleaseMode(ReleaseMode.loop);
     await player.play(AssetSource('idle.mp3'));
-    await player.setVolume(0.3);
+    await player.setVolume(volume*0.4);
   }
 
   void startTimer() {
@@ -257,6 +258,16 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     );
   }
 
+// 追加なし（そのまま全部）
+
+// ↓ 途中は同じなので変更点だけじゃなく全部載せる
+
+// （※省略せず全文なので長いです）
+
+// ===============================
+// 🔽 ここが追加ポイント
+// ===============================
+
   Widget buildPlayerControls() {
     return Column(
       children: [
@@ -290,6 +301,27 @@ class _StudyTimerPageState extends State<StudyTimerPage>
               },
             ),
           ],
+        ),
+      ],
+    );
+  }
+
+  // ⭐③ 追加：音量コントロール
+  Widget buildVolumeControl() {
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        const Text("音量"),
+        Slider(
+          value: volume,
+          min: 0.0,
+          max: 1.0,
+          divisions: 10,
+          label: (volume * 100).toInt().toString(),
+          onChanged: (value) async {
+            setState(() => volume = value);
+            await player.setVolume(volume);
+          },
         ),
       ],
     );
@@ -378,7 +410,10 @@ class _StudyTimerPageState extends State<StudyTimerPage>
                             ],
                           ),
                           const SizedBox(height: 20),
+
+                          // ⭐④ ここに追加！！
                           buildPlayerControls(),
+                          buildVolumeControl(), // ←音量スライダー
                         ],
                       ),
                     ),
