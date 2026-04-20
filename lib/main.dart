@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
-import 'dart:math' as math; // sin計算のために追加
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -284,7 +284,8 @@ class StudyTimerPage extends StatefulWidget {
 
 class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStateMixin {
   late ConfettiController _confettiController;
-  late AnimationController _bgAnimationController; // 背景アニメーション用
+  late AnimationController _bgAnimationController; 
+  late AnimationController _pulseController; // 鼓動用
 
   double volume = 0.8;
   int elapsedSeconds = 0;
@@ -338,8 +339,15 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
     _cdRotationController = AnimationController(vsync: this, duration: const Duration(seconds: 2));
     _rotation = Tween<double>(begin: 0, end: 1).animate(_cdRotationController);
 
-    // 背景アニメーション用（10秒かけてゆったり動かす）
+    // 背景アニメーション用（10秒周期）
     _bgAnimationController = AnimationController(vsync: this, duration: const Duration(seconds: 10));
+
+    // 鼓動アニメーション用（1秒周期）
+    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
+    _pulseController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) _pulseController.reverse();
+      else if (status == AnimationStatus.dismissed && isRunning) _pulseController.forward();
+    });
   }
 
   Future<void> _initApp() async {
@@ -351,6 +359,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
   void dispose() {
     _confettiController.dispose();
     _bgAnimationController.dispose();
+    _pulseController.dispose();
     timer?.cancel();
     memoController.dispose();
     player.dispose();
@@ -381,7 +390,8 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
     setState(() => isRunning = true);
     playStudyBgm();
     _cdRotationController.repeat();
-    _bgAnimationController.repeat(reverse: true); // 背景アニメーション開始
+    _bgAnimationController.repeat(reverse: true); 
+    _pulseController.forward(); // 鼓動開始
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => elapsedSeconds++);
     });
@@ -392,7 +402,8 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
     setState(() => isRunning = false);
     playIdleBgm();
     _cdRotationController.stop();
-    _bgAnimationController.animateTo(0, duration: const Duration(seconds: 2), curve: Curves.easeInOut); // ゆっくり止める
+    _bgAnimationController.animateTo(0, duration: const Duration(seconds: 2), curve: Curves.easeInOut);
+    _pulseController.stop(); // 鼓動停止
   }
 
   Future<void> saveLog() async {
@@ -426,6 +437,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
       playIdleBgm();
       _cdRotationController.stop();
       _bgAnimationController.animateTo(0, duration: const Duration(seconds: 1));
+      _pulseController.stop();
     } catch (e) {
       debugPrint("Save error: $e");
     }
@@ -456,12 +468,12 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
       extendBodyBehindAppBar: true,
       body: Stack(
         children: [
-          // --- 動くグラデーション背景 ---
+          // --- 背景：動くグラデーション ---
           AnimatedBuilder(
             animation: _bgAnimationController,
             builder: (context, child) {
               double val = _bgAnimationController.value;
-              // 揺らぎを計算 (sin関数でなめらかに)
+              // 動きを強調するために 0.8 / 0.5 まで大きく設定
               double dx = math.sin(val * math.pi) * 0.8;
               double dy = math.cos(val * math.pi) * 0.5;
 
@@ -470,7 +482,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
                   gradient: LinearGradient(
                     begin: Alignment(-1.0 + dx, -1.0 + dy),
                     end: Alignment(1.0 - dx, 1.0 - dy),
-                    colors: const [Color(0xFF0A0D18), Color(0xFF25335A)],
+                    colors: const [Color(0xFF0A0D18), Color(0xFF212C4D)], // コントラストを少し上げた
                   ),
                 ),
               );
@@ -492,7 +504,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                buildCDWithProgress(),
+                                buildCDWithPulse(), // 鼓動付きCD
                                 const SizedBox(width: 28),
                                 Column(
                                   children: [
@@ -625,7 +637,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
             ),
           ),
 
-          // 紙吹雪エフェクト
           Align(
             alignment: Alignment.topCenter,
             child: ConfettiWidget(
@@ -669,51 +680,63 @@ class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStat
     );
   }
 
-  Widget buildCDWithProgress() {
-    return SizedBox(
-      width: 110, height: 110,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          CircularProgressIndicator(
-            value: progress, 
-            strokeWidth: 3, 
-            backgroundColor: Colors.white10,
-            color: const Color(0xFF00C3FF).withOpacity(0.5),
-          ),
-          if(isRunning) Container(
-            width: 100, height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: const Color(0xFF00C3FF).withOpacity(0.15), blurRadius: 10, spreadRadius: 1)]
+  // --- 鼓動（パルス）アニメーション付きCDコンポーネント ---
+  Widget buildCDWithPulse() {
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        // タイマー作動中だけ、サイズを 0.98 〜 1.02 の間で鼓動させる
+        final double scale = 1.0 + (Curves.easeInOut.transform(_pulseController.value) * 0.03);
+        return Transform.scale(
+          scale: isRunning ? scale : 1.0,
+          child: child,
+        );
+      },
+      child: SizedBox(
+        width: 110, height: 110,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CircularProgressIndicator(
+              value: progress, 
+              strokeWidth: 3, 
+              backgroundColor: Colors.white10,
+              color: const Color(0xFF00C3FF).withOpacity(0.5),
             ),
-          ),
-          RotationTransition(
-            turns: _rotation,
-            child: Container(
-              width: 90, height: 90,
+            if(isRunning) Container(
+              width: 100, height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: SweepGradient(
-                  colors: [const Color(0xFF00C3FF).withOpacity(0.05), const Color(0xFF00C3FF).withOpacity(0.3), const Color(0xFF00C3FF).withOpacity(0.05)],
-                  stops: const [0.0, 0.5, 1.0],
+                boxShadow: [BoxShadow(color: const Color(0xFF00C3FF).withOpacity(0.15), blurRadius: 10, spreadRadius: 1)]
+              ),
+            ),
+            RotationTransition(
+              turns: _rotation,
+              child: Container(
+                width: 90, height: 90,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: SweepGradient(
+                    colors: [const Color(0xFF00C3FF).withOpacity(0.05), const Color(0xFF00C3FF).withOpacity(0.3), const Color(0xFF00C3FF).withOpacity(0.05)],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
                 ),
               ),
             ),
-          ),
-          RotationTransition(
-            turns: _rotation,
-            child: Container(
-              width: 42, height: 42,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black, width: 2),
-                boxShadow: [const BoxShadow(color: Colors.black54, blurRadius: 3)]
+            RotationTransition(
+              turns: _rotation,
+              child: Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black, width: 2),
+                  boxShadow: [const BoxShadow(color: Colors.black54, blurRadius: 3)]
+                ),
+                child: ClipOval(child: Image.asset('assets/$currentImage', width: 42, height: 42, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note, color: Colors.white24, size: 20))),
               ),
-              child: ClipOval(child: Image.asset('assets/$currentImage', width: 42, height: 42, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note, color: Colors.white24, size: 20))),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
