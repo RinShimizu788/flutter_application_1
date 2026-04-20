@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
+import 'dart:math' as math; // sin計算のために追加
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:confetti/confetti.dart'; // ← 追加
+import 'package:confetti/confetti.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,7 +89,7 @@ class MyApp extends StatelessWidget {
 }
 
 // ==========================================
-// 2. 全履歴画面：HistoryPage (三点リーダー削除機能付き)
+// 2. 全履歴画面：HistoryPage
 // ==========================================
 class HistoryPage extends StatefulWidget {
   final List<StudyLog> allLogs;
@@ -281,9 +282,9 @@ class StudyTimerPage extends StatefulWidget {
   State<StudyTimerPage> createState() => _StudyTimerPageState();
 }
 
-class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProviderStateMixin {
-  // --- 紙吹雪用のコントローラーを追加 ---
+class _StudyTimerPageState extends State<StudyTimerPage> with TickerProviderStateMixin {
   late ConfettiController _confettiController;
+  late AnimationController _bgAnimationController; // 背景アニメーション用
 
   double volume = 0.8;
   int elapsedSeconds = 0;
@@ -305,7 +306,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
   final TextEditingController memoController = TextEditingController();
   List<StudyLog> logs = [];
   final AudioPlayer player = AudioPlayer();
-  late AnimationController _controller;
+  late AnimationController _cdRotationController;
   late Animation<double> _rotation;
 
   final Map<String, IconData> subjectIcons = {
@@ -331,10 +332,14 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
   void initState() {
     super.initState();
     _initApp();
-    // 紙吹雪を1秒間鳴らす設定
     _confettiController = ConfettiController(duration: const Duration(seconds: 1));
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2));
-    _rotation = Tween<double>(begin: 0, end: 1).animate(_controller);
+    
+    // CD回転用
+    _cdRotationController = AnimationController(vsync: this, duration: const Duration(seconds: 2));
+    _rotation = Tween<double>(begin: 0, end: 1).animate(_cdRotationController);
+
+    // 背景アニメーション用（10秒かけてゆったり動かす）
+    _bgAnimationController = AnimationController(vsync: this, duration: const Duration(seconds: 10));
   }
 
   Future<void> _initApp() async {
@@ -344,11 +349,12 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
 
   @override
   void dispose() {
-    _confettiController.dispose(); // 紙吹雪コントローラーの破棄
+    _confettiController.dispose();
+    _bgAnimationController.dispose();
     timer?.cancel();
     memoController.dispose();
     player.dispose();
-    _controller.dispose();
+    _cdRotationController.dispose();
     super.dispose();
   }
 
@@ -374,7 +380,8 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
     timer?.cancel();
     setState(() => isRunning = true);
     playStudyBgm();
-    _controller.repeat();
+    _cdRotationController.repeat();
+    _bgAnimationController.repeat(reverse: true); // 背景アニメーション開始
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => elapsedSeconds++);
     });
@@ -384,7 +391,8 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
     timer?.cancel();
     setState(() => isRunning = false);
     playIdleBgm();
-    _controller.stop();
+    _cdRotationController.stop();
+    _bgAnimationController.animateTo(0, duration: const Duration(seconds: 2), curve: Curves.easeInOut); // ゆっくり止める
   }
 
   Future<void> saveLog() async {
@@ -406,9 +414,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
       stored.add(jsonEncode(log.toMap()));
       await prefs.setStringList('study_logs', stored);
       
-      // --- 紙吹雪を再生！ ---
       _confettiController.play();
-
       await loadLogs();
 
       setState(() {
@@ -418,7 +424,8 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
       });
       timer?.cancel();
       playIdleBgm();
-      _controller.stop();
+      _cdRotationController.stop();
+      _bgAnimationController.animateTo(0, duration: const Duration(seconds: 1));
     } catch (e) {
       debugPrint("Save error: $e");
     }
@@ -447,179 +454,187 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
     const double contentWidth = 410;
     return Scaffold(
       extendBodyBehindAppBar: true,
-      body: Stack( // 紙吹雪を重ねるためにStackを使用
+      body: Stack(
         children: [
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [Color(0xFF0A0D18), Color(0xFF1B2339)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-            ),
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    Center(
-                      child: SizedBox(
-                        width: contentWidth,
-                        child: glassCard(
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  buildCDWithProgress(),
-                                  const SizedBox(width: 28),
-                                  Column(
-                                    children: [
-                                      Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 3, fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70)),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
-                                        style: GoogleFonts.jetBrainsMono(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 18),
-                              buildPlayerControls(),
-                              const SizedBox(height: 5),
-                              Slider(
-                                value: volume, 
-                                activeColor: const Color(0xFF00C3FF),
-                                inactiveColor: Colors.white12,
-                                onChanged: (v) { setState(() => volume = v); player.setVolume(v); }
-                              ),
-                            ],
-                          ),
+          // --- 動くグラデーション背景 ---
+          AnimatedBuilder(
+            animation: _bgAnimationController,
+            builder: (context, child) {
+              double val = _bgAnimationController.value;
+              // 揺らぎを計算 (sin関数でなめらかに)
+              double dx = math.sin(val * math.pi) * 0.8;
+              double dy = math.cos(val * math.pi) * 0.5;
+
+              return Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment(-1.0 + dx, -1.0 + dy),
+                    end: Alignment(1.0 - dx, 1.0 - dy),
+                    colors: const [Color(0xFF0A0D18), Color(0xFF25335A)],
+                  ),
+                ),
+              );
+            },
+          ),
+          
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Center(
+                    child: SizedBox(
+                      width: contentWidth,
+                      child: glassCard(
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                buildCDWithProgress(),
+                                const SizedBox(width: 28),
+                                Column(
+                                  children: [
+                                    Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 3, fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
+                                      style: GoogleFonts.jetBrainsMono(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            buildPlayerControls(),
+                            const SizedBox(height: 5),
+                            Slider(
+                              value: volume, 
+                              activeColor: const Color(0xFF00C3FF),
+                              inactiveColor: Colors.white12,
+                              onChanged: (v) { setState(() => volume = v); player.setVolume(v); }
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: contentWidth,
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 8,
-                        children: subjectIcons.entries.map((e) => ChoiceChip(
-                          label: Text(e.key), 
-                          avatar: Icon(e.value, size: 14, color: selectedSubject == e.key ? Colors.black87 : const Color(0xFF00C3FF)),
-                          selected: selectedSubject == e.key,
-                          labelStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: selectedSubject == e.key ? Colors.black87 : Colors.white),
-                          selectedColor: const Color(0xFF00C3FF),
-                          backgroundColor: Colors.white.withOpacity(0.06),
-                          showCheckmark: false,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20), 
-                            side: BorderSide(color: selectedSubject == e.key ? Colors.transparent : Colors.white12, width: 0.5),
-                          ),
-                          onSelected: (_) => setState(() => selectedSubject = e.key),
-                        )).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: contentWidth,
-                      child: TextField(
-                        controller: memoController, 
-                        style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: '何をする？', 
-                          hintStyle: GoogleFonts.inter(color: Colors.white38),
-                          filled: true, 
-                          fillColor: Colors.white.withOpacity(0.06), 
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white12, width: 0.5)),
-                        )
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: contentWidth, 
-                      child: ElevatedButton.icon(
-                        onPressed: saveLog, 
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00C3FF),
-                          foregroundColor: Colors.black87,
-                          minimumSize: const Size.fromHeight(50),
-                          elevation: 5,
-                          shadowColor: const Color(0xFF00C3FF).withOpacity(0.4),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: contentWidth,
+                    child: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      children: subjectIcons.entries.map((e) => ChoiceChip(
+                        label: Text(e.key), 
+                        avatar: Icon(e.value, size: 14, color: selectedSubject == e.key ? Colors.black87 : const Color(0xFF00C3FF)),
+                        selected: selectedSubject == e.key,
+                        labelStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: selectedSubject == e.key ? Colors.black87 : Colors.white),
+                        selectedColor: const Color(0xFF00C3FF),
+                        backgroundColor: Colors.white.withOpacity(0.06),
+                        showCheckmark: false,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20), 
+                          side: BorderSide(color: selectedSubject == e.key ? Colors.transparent : Colors.white12, width: 0.5),
                         ),
-                        icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-                        label: Text("学習を記録する", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                        onSelected: (_) => setState(() => selectedSubject = e.key),
+                      )).toList(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: contentWidth,
+                    child: TextField(
+                      controller: memoController, 
+                      style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: '何をする？', 
+                        hintStyle: GoogleFonts.inter(color: Colors.white38),
+                        filled: true, 
+                        fillColor: Colors.white.withOpacity(0.06), 
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white12, width: 0.5)),
                       )
                     ),
-                    const SizedBox(height: 25),
-                    SizedBox(
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: contentWidth, 
+                    child: ElevatedButton.icon(
+                      onPressed: saveLog, 
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C3FF),
+                        foregroundColor: Colors.black87,
+                        minimumSize: const Size.fromHeight(50),
+                        elevation: 5,
+                        shadowColor: const Color(0xFF00C3FF).withOpacity(0.4),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                      label: Text("学習を記録する", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                    )
+                  ),
+                  const SizedBox(height: 25),
+                  SizedBox(
+                    width: contentWidth,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("TODAY'S LOG", style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 1)),
+                            const SizedBox(height: 2),
+                            Text("今日の合計: $totalMinutesToday 分", style: GoogleFonts.inter(color: const Color(0xFF00C3FF), fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                        _buildHistoryButton(),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: SizedBox(
                       width: contentWidth,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text("TODAY'S LOG", style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 1)),
-                              const SizedBox(height: 2),
-                              Text("今日の合計: $totalMinutesToday 分", style: GoogleFonts.inter(color: const Color(0xFF00C3FF), fontWeight: FontWeight.bold, fontSize: 12)),
-                            ],
+                      child: todayLogs.isEmpty 
+                        ? const Center(child: Text("今日の履歴はまだありません", style: TextStyle(color: Colors.white24, fontSize: 13)))
+                        : ListView.builder(
+                            itemCount: todayLogs.length,
+                            itemBuilder: (_, i) {
+                              final log = todayLogs[i];
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                color: Colors.white.withOpacity(0.04),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: Colors.white.withOpacity(0.06))),
+                                child: ListTile(
+                                  dense: true,
+                                  leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: const Color(0xFF00C3FF), size: 18),
+                                  title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
+                                  subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
+                                ),
+                              );
+                            },
                           ),
-                          _buildHistoryButton(),
-                        ],
-                      ),
                     ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: SizedBox(
-                        width: contentWidth,
-                        child: todayLogs.isEmpty 
-                          ? const Center(child: Text("今日の履歴はまだありません", style: TextStyle(color: Colors.white24, fontSize: 13)))
-                          : ListView.builder(
-                              itemCount: todayLogs.length,
-                              itemBuilder: (_, i) {
-                                final log = todayLogs[i];
-                                return Card(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  color: Colors.white.withOpacity(0.04),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14), 
-                                    side: BorderSide(color: Colors.white.withOpacity(0.06)),
-                                  ),
-                                  child: ListTile(
-                                    dense: true,
-                                    leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: const Color(0xFF00C3FF), size: 18),
-                                    title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
-                                    subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
-                                  ),
-                                );
-                              },
-                            ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
 
-          // --- 紙吹雪エフェクトを最前面に配置 ---
+          // 紙吹雪エフェクト
           Align(
-            alignment: Alignment.topCenter, // 画面中央上部から噴射
+            alignment: Alignment.topCenter,
             child: ConfettiWidget(
               confettiController: _confettiController,
-              blastDirectionality: BlastDirectionality.explosive, // 全方向に広がる
+              blastDirectionality: BlastDirectionality.explosive,
               shouldLoop: false,
-              colors: const [
-                Color(0xFF00C3FF),
-                Colors.white,
-                Colors.cyanAccent,
-                Colors.blueAccent,
-              ],
-              numberOfParticles: 20, // 粒の数
-              gravity: 0.1,          // 重力（ゆっくり落ちる）
+              colors: const [Color(0xFF00C3FF), Colors.white, Colors.cyanAccent, Colors.blueAccent],
+              numberOfParticles: 20,
+              gravity: 0.1,
             ),
           ),
         ],
@@ -632,22 +647,12 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFF00C3FF).withOpacity(0.4), width: 0.5),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF00C3FF).withOpacity(0.12), blurRadius: 6, spreadRadius: 0),
-        ],
+        boxShadow: [BoxShadow(color: const Color(0xFF00C3FF).withOpacity(0.12), blurRadius: 6, spreadRadius: 0)],
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => HistoryPage(
-                allLogs: List.from(logs), 
-                subjectIcons: subjectIcons,
-              ),
-            ),
-          );
+          await Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryPage(allLogs: List.from(logs), subjectIcons: subjectIcons)));
           loadLogs();
         },
         child: Padding(
@@ -680,13 +685,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
             width: 100, height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF00C3FF).withOpacity(0.15), 
-                  blurRadius: 10, 
-                  spreadRadius: 1,
-                ),
-              ]
+              boxShadow: [BoxShadow(color: const Color(0xFF00C3FF).withOpacity(0.15), blurRadius: 10, spreadRadius: 1)]
             ),
           ),
           RotationTransition(
@@ -696,11 +695,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: SweepGradient(
-                  colors: [
-                    const Color(0xFF00C3FF).withOpacity(0.05), 
-                    const Color(0xFF00C3FF).withOpacity(0.3), 
-                    const Color(0xFF00C3FF).withOpacity(0.05)
-                  ],
+                  colors: [const Color(0xFF00C3FF).withOpacity(0.05), const Color(0xFF00C3FF).withOpacity(0.3), const Color(0xFF00C3FF).withOpacity(0.05)],
                   stops: const [0.0, 0.5, 1.0],
                 ),
               ),
@@ -713,9 +708,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.black, width: 2),
-                boxShadow: [
-                  const BoxShadow(color: Colors.black54, blurRadius: 3),
-                ]
+                boxShadow: [const BoxShadow(color: Colors.black54, blurRadius: 3)]
               ),
               child: ClipOval(child: Image.asset('assets/$currentImage', width: 42, height: 42, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note, color: Colors.white24, size: 20))),
             ),
