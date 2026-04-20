@@ -85,7 +85,7 @@ class MyApp extends StatelessWidget {
 }
 
 // ==========================================
-// 2. 全履歴画面：HistoryPage（統計ダッシュボード付き）
+// 2. 全履歴画面：HistoryPage（日付グループ化表示）
 // ==========================================
 class HistoryPage extends StatelessWidget {
   final List<StudyLog> allLogs;
@@ -95,17 +95,20 @@ class HistoryPage extends StatelessWidget {
 
   int get totalMinutesAll => allLogs.fold(0, (sum, log) => sum + log.minutes);
 
-  Map<String, int> get subjectStats {
-    Map<String, int> stats = {};
+  // ログを日付ごとにグループ化するゲッター
+  Map<String, List<StudyLog>> get groupedLogs {
+    Map<String, List<StudyLog>> groups = {};
     for (var log in allLogs) {
-      stats[log.subject] = (stats[log.subject] ?? 0) + log.minutes;
+      String dateKey = log.formattedFullDate;
+      if (groups[dateKey] == null) groups[dateKey] = [];
+      groups[dateKey]!.add(log);
     }
-    return stats;
+    return groups;
   }
 
   @override
   Widget build(BuildContext context) {
-    final stats = subjectStats;
+    final groups = groupedLogs;
 
     return Scaffold(
       appBar: AppBar(
@@ -124,88 +127,102 @@ class HistoryPage extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // 累計統計カード
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
-                    ),
-                    child: Column(
-                      children: [
-                        const Text("TOTAL STUDY TIME",
-                            style: TextStyle(fontSize: 12, letterSpacing: 1.5, color: Colors.blueAccent)),
-                        const SizedBox(height: 8),
-                        Text(
-                          "${(totalMinutesAll ~/ 60)}h ${(totalMinutesAll % 60)}m",
-                          style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                        const Divider(height: 30, color: Colors.white10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: stats.entries.map((e) {
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.05),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                "${e.key}: ${e.value}分",
-                                style: const TextStyle(fontSize: 11, color: Colors.white70),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text("詳細ログ一覧", style: TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 10),
-            // リスト表示
+            _buildTotalStatsCard(),
             Expanded(
               child: allLogs.isEmpty
                   ? const Center(child: Text("履歴がありません"))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: allLogs.length,
-                      itemBuilder: (_, i) {
-                        final log = allLogs[i];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          color: Colors.white.withOpacity(0.05),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          child: ListTile(
-                            leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: Colors.blueAccent),
-                            title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text(
-                              '${log.subject} • ${log.minutes}分\n${log.formattedFullDate} ${log.formattedTimeRange}',
-                              style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      itemCount: groups.keys.length,
+                      itemBuilder: (_, index) {
+                        String date = groups.keys.elementAt(index);
+                        List<StudyLog> logsInDate = groups[date]!;
+                        int dailyTotal = logsInDate.fold(0, (sum, log) => sum + log.minutes);
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                              child: Row(
+                                children: [
+                                  Text(date, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                                  const SizedBox(width: 10),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.blueAccent.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text("計 $dailyTotal 分", style: const TextStyle(fontSize: 10, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                                  ),
+                                  const Expanded(child: Divider(indent: 10, color: Colors.white10)),
+                                ],
+                              ),
                             ),
-                          ),
+                            ...logsInDate.map((log) => _buildDetailCard(log)).toList(),
+                            const SizedBox(height: 10),
+                          ],
                         );
                       },
                     ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTotalStatsCard() {
+    Map<String, int> stats = {};
+    for (var log in allLogs) {
+      stats[log.subject] = (stats[log.subject] ?? 0) + log.minutes;
+    }
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.blueAccent.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+            ),
+            child: Column(
+              children: [
+                const Text("TOTAL STUDY TIME", style: TextStyle(fontSize: 11, letterSpacing: 1.5, color: Colors.blueAccent)),
+                const SizedBox(height: 8),
+                Text("${(totalMinutesAll ~/ 60)}h ${(totalMinutesAll % 60)}m", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
+                const Divider(height: 24, color: Colors.white10),
+                Wrap(
+                  spacing: 8, runSpacing: 8,
+                  children: stats.entries.map((e) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
+                    child: Text("${e.key}: ${e.value}分", style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                  )).toList(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailCard(StudyLog log) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      color: Colors.white.withOpacity(0.05),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        dense: true,
+        leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: Colors.blueAccent, size: 18),
+        title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
       ),
     );
   }
@@ -254,7 +271,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
 
   double get progress => (elapsedSeconds / goalSeconds).clamp(0.0, 1.0);
 
-  // 今日のログ・合計時間
   List<StudyLog> get todayLogs {
     final now = DateTime.now();
     return logs.where((log) {
@@ -387,8 +403,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
               children: [
-                const SizedBox(height: 20),
-                // タイマーセクション
+                const SizedBox(height: 10),
                 Center(
                   child: SizedBox(
                     width: contentWidth,
@@ -402,7 +417,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                               const SizedBox(width: 24),
                               Column(
                                 children: [
-                                  Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 2)),
+                                  Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 2, fontSize: 12)),
                                   Text(
                                     '${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
                                     style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
@@ -411,7 +426,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                               ),
                             ],
                           ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 15),
                           buildPlayerControls(),
                           Slider(value: volume, onChanged: (v) { setState(() => volume = v); player.setVolume(v); }),
                         ],
@@ -420,14 +435,13 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                   ),
                 ),
                 const SizedBox(height: 15),
-                // 入力セクション
                 SizedBox(
                   width: contentWidth,
                   child: Wrap(
                     alignment: WrapAlignment.center,
                     spacing: 8,
                     children: subjectIcons.entries.map((e) => ChoiceChip(
-                      label: Text(e.key), avatar: Icon(e.value, size: 16),
+                      label: Text(e.key), avatar: Icon(e.value, size: 14),
                       selected: selectedSubject == e.key,
                       onSelected: (_) => setState(() => selectedSubject = e.key),
                     )).toList(),
@@ -440,9 +454,8 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                 ),
                 const SizedBox(height: 10),
                 SizedBox(width: contentWidth, child: ElevatedButton(onPressed: saveLog, child: const Text("学習を記録する"))),
-                const SizedBox(height: 25),
-
-                // 今日のみの履歴見出し
+                const SizedBox(height: 20),
+                // 見出しセクション
                 SizedBox(
                   width: contentWidth,
                   child: Row(
@@ -451,40 +464,15 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text("TODAY'S LOG", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text("今日の合計: $totalMinutesToday 分", style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 13)),
+                          const Text("TODAY'S LOG", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                          Text("今日の合計: $totalMinutesToday 分", style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 12)),
                         ],
                       ),
-                      // ネオンデザインの「すべて表示」ボタン
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
-                          boxShadow: [
-                            BoxShadow(color: Colors.blueAccent.withOpacity(0.1), blurRadius: 4, spreadRadius: 1),
-                          ],
-                        ),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(20),
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryPage(allLogs: logs, subjectIcons: subjectIcons))),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            child: Row(
-                              children: [
-                                Icon(Icons.history, size: 16, color: Colors.blueAccent),
-                                SizedBox(width: 4),
-                                Text("すべて表示", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 11)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
+                      _buildHistoryButton(),
                     ],
                   ),
                 ),
                 const SizedBox(height: 10),
-
-                // 今日のリスト
                 Expanded(
                   child: SizedBox(
                     width: contentWidth,
@@ -498,9 +486,9 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                               margin: const EdgeInsets.only(bottom: 8),
                               color: Colors.white.withOpacity(0.05),
                               child: ListTile(
-                                leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: Colors.blueAccent),
-                                title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo),
-                                subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}'),
+                                leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: Colors.blueAccent, size: 18),
+                                title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: const TextStyle(fontSize: 13)),
+                                subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: const TextStyle(fontSize: 11)),
                               ),
                             );
                           },
@@ -515,10 +503,33 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
     );
   }
 
-  // --- ヘルパーWidget群 ---
+  Widget _buildHistoryButton() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
+        boxShadow: [BoxShadow(color: Colors.blueAccent.withOpacity(0.1), blurRadius: 4)],
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryPage(allLogs: logs, subjectIcons: subjectIcons))),
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            children: [
+              Icon(Icons.history, size: 14, color: Colors.blueAccent),
+              SizedBox(width: 4),
+              Text("すべて表示", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 10)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget buildCDWithProgress() {
     return SizedBox(
-      width: 120, height: 120,
+      width: 110, height: 110,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -526,7 +537,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
           RotationTransition(
             turns: _rotation,
             child: Container(
-              width: 100, height: 100,
+              width: 90, height: 90,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: SweepGradient(colors: [Colors.blueAccent.withOpacity(0.1), Colors.blueAccent, Colors.blueAccent.withOpacity(0.1)]),
@@ -535,7 +546,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
           ),
           RotationTransition(
             turns: _rotation,
-            child: ClipOval(child: Image.asset('assets/$currentImage', width: 45, height: 45, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note))),
+            child: ClipOval(child: Image.asset('assets/$currentImage', width: 40, height: 40, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note))),
           ),
         ],
       ),
@@ -545,13 +556,13 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
   Widget buildPlayerControls() {
     return Column(
       children: [
-        Text(currentTrack, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(currentTrack, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            IconButton(icon: const Icon(Icons.skip_previous), onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex - 1 + tracks.length) % tracks.length); if (isRunning) playStudyBgm(); }),
-            IconButton(icon: Icon(isRunning ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 45, color: Colors.blueAccent), onPressed: isRunning ? stopTimer : startTimer),
-            IconButton(icon: const Icon(Icons.skip_next), onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex + 1) % tracks.length); if (isRunning) playStudyBgm(); }),
+            IconButton(icon: const Icon(Icons.skip_previous, size: 20), onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex - 1 + tracks.length) % tracks.length); if (isRunning) playStudyBgm(); }),
+            IconButton(icon: Icon(isRunning ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 40, color: Colors.blueAccent), onPressed: isRunning ? stopTimer : startTimer),
+            IconButton(icon: const Icon(Icons.skip_next, size: 20), onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex + 1) % tracks.length); if (isRunning) playStudyBgm(); }),
           ],
         ),
       ],
@@ -560,12 +571,12 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
 
   Widget glassCard({required Widget child}) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.07), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withOpacity(0.15))),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.07), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.15))),
           child: child,
         ),
       ),
