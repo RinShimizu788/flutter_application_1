@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:confetti/confetti.dart'; // ← 追加
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,26 +113,19 @@ class _HistoryPageState extends State<HistoryPage> {
     return groups;
   }
 
-  // 特定のログを削除するメソッド
   Future<void> _deleteLog(StudyLog log) async {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getStringList('study_logs') ?? [];
-
-    // 開始時間をキーにしてSharedPreferencesから削除
     stored.removeWhere((item) {
       final map = jsonDecode(item);
       return map['startTime'] == log.startTime.toIso8601String();
     });
-
     await prefs.setStringList('study_logs', stored);
-
-    // メモリ上のリストも更新してUIを再描画
     setState(() {
       widget.allLogs.remove(log);
     });
   }
 
-  // 削除確認ダイアログ
   void _showDeleteConfirmDialog(StudyLog log) {
     showDialog(
       context: context,
@@ -141,15 +135,9 @@ class _HistoryPageState extends State<HistoryPage> {
         title: Text("ログの削除", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
         content: const Text("この学習記録を削除しますか？"),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("キャンセル", style: TextStyle(color: Colors.white38))),
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("キャンセル", style: TextStyle(color: Colors.white38)),
-          ),
-          TextButton(
-            onPressed: () {
-              _deleteLog(log);
-              Navigator.pop(context);
-            },
+            onPressed: () { _deleteLog(log); Navigator.pop(context); },
             child: const Text("削除", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -160,25 +148,17 @@ class _HistoryPageState extends State<HistoryPage> {
   @override
   Widget build(BuildContext context) {
     final groups = groupedLogs;
-
     return Scaffold(
       appBar: AppBar(
         title: Text("ALL HISTORY", style: GoogleFonts.montserrat(letterSpacing: 1, fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: const Color(0xFF0A0D18),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded), onPressed: () => Navigator.pop(context)),
       ),
       body: Container(
         width: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0A0D18), Color(0xFF1B2339)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          gradient: LinearGradient(colors: [Color(0xFF0A0D18), Color(0xFF1B2339)], begin: Alignment.topLeft, end: Alignment.bottomRight),
         ),
         child: Column(
           children: [
@@ -193,7 +173,6 @@ class _HistoryPageState extends State<HistoryPage> {
                         String date = groups.keys.elementAt(index);
                         List<StudyLog> logsInDate = groups[date]!;
                         int dailyTotal = logsInDate.fold(0, (sum, log) => sum + log.minutes);
-
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -231,9 +210,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   Widget _buildTotalStatsCard() {
     Map<String, int> stats = {};
-    for (var log in widget.allLogs) {
-      stats[log.subject] = (stats[log.subject] ?? 0) + log.minutes;
-    }
+    for (var log in widget.allLogs) { stats[log.subject] = (stats[log.subject] ?? 0) + log.minutes; }
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: ClipRRect(
@@ -257,11 +234,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   spacing: 10, runSpacing: 10,
                   children: stats.entries.map((e) => Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white12, width: 0.5),
-                    ),
+                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.white12, width: 0.5)),
                     child: Text("${e.key}: ${e.value}分", style: GoogleFonts.inter(fontSize: 10, color: Colors.white70)),
                   )).toList(),
                 ),
@@ -278,10 +251,7 @@ class _HistoryPageState extends State<HistoryPage> {
       margin: const EdgeInsets.only(bottom: 8),
       color: Colors.white.withOpacity(0.04),
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: Colors.white.withOpacity(0.06)),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: Colors.white.withOpacity(0.06))),
       child: ListTile(
         dense: true,
         leading: Icon(widget.subjectIcons[log.subject] ?? Icons.book, color: const Color(0xFF00C3FF), size: 18),
@@ -291,20 +261,9 @@ class _HistoryPageState extends State<HistoryPage> {
           icon: const Icon(Icons.more_vert, color: Colors.white38, size: 20),
           color: const Color(0xFF1B2339),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white12)),
-          onSelected: (value) {
-            if (value == 'delete') _showDeleteConfirmDialog(log);
-          },
+          onSelected: (value) { if (value == 'delete') _showDeleteConfirmDialog(log); },
           itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
-                  SizedBox(width: 8),
-                  Text("削除", style: TextStyle(color: Colors.redAccent, fontSize: 14)),
-                ],
-              ),
-            ),
+            const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_outline, color: Colors.redAccent, size: 18), SizedBox(width: 8), Text("削除", style: TextStyle(color: Colors.redAccent, fontSize: 14))])),
           ],
         ),
       ),
@@ -323,6 +282,9 @@ class StudyTimerPage extends StatefulWidget {
 }
 
 class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProviderStateMixin {
+  // --- 紙吹雪用のコントローラーを追加 ---
+  late ConfettiController _confettiController;
+
   double volume = 0.8;
   int elapsedSeconds = 0;
   int goalSeconds = 1500;
@@ -369,6 +331,8 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
   void initState() {
     super.initState();
     _initApp();
+    // 紙吹雪を1秒間鳴らす設定
+    _confettiController = ConfettiController(duration: const Duration(seconds: 1));
     _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2));
     _rotation = Tween<double>(begin: 0, end: 1).animate(_controller);
   }
@@ -380,6 +344,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
 
   @override
   void dispose() {
+    _confettiController.dispose(); // 紙吹雪コントローラーの破棄
     timer?.cancel();
     memoController.dispose();
     player.dispose();
@@ -440,6 +405,10 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
 
       stored.add(jsonEncode(log.toMap()));
       await prefs.setStringList('study_logs', stored);
+      
+      // --- 紙吹雪を再生！ ---
+      _confettiController.play();
+
       await loadLogs();
 
       setState(() {
@@ -478,160 +447,182 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
     const double contentWidth = 410;
     return Scaffold(
       extendBodyBehindAppBar: true,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(colors: [Color(0xFF0A0D18), Color(0xFF1B2339)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                const SizedBox(height: 12),
-                Center(
-                  child: SizedBox(
-                    width: contentWidth,
-                    child: glassCard(
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+      body: Stack( // 紙吹雪を重ねるためにStackを使用
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [Color(0xFF0A0D18), Color(0xFF1B2339)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Center(
+                      child: SizedBox(
+                        width: contentWidth,
+                        child: glassCard(
+                          child: Column(
                             children: [
-                              buildCDWithProgress(),
-                              const SizedBox(width: 28),
-                              Column(
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 3, fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70)),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
-                                    style: GoogleFonts.jetBrainsMono(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
+                                  buildCDWithProgress(),
+                                  const SizedBox(width: 28),
+                                  Column(
+                                    children: [
+                                      Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 3, fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
+                                        style: GoogleFonts.jetBrainsMono(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
+                              const SizedBox(height: 18),
+                              buildPlayerControls(),
+                              const SizedBox(height: 5),
+                              Slider(
+                                value: volume, 
+                                activeColor: const Color(0xFF00C3FF),
+                                inactiveColor: Colors.white12,
+                                onChanged: (v) { setState(() => volume = v); player.setVolume(v); }
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 18),
-                          buildPlayerControls(),
-                          const SizedBox(height: 5),
-                          Slider(
-                            value: volume, 
-                            activeColor: const Color(0xFF00C3FF),
-                            inactiveColor: Colors.white12,
-                            onChanged: (v) { setState(() => volume = v); player.setVolume(v); }
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: contentWidth,
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 8,
-                    children: subjectIcons.entries.map((e) => ChoiceChip(
-                      label: Text(e.key), 
-                      avatar: Icon(e.value, size: 14, color: selectedSubject == e.key ? Colors.black87 : const Color(0xFF00C3FF)),
-                      selected: selectedSubject == e.key,
-                      labelStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: selectedSubject == e.key ? Colors.black87 : Colors.white),
-                      selectedColor: const Color(0xFF00C3FF),
-                      backgroundColor: Colors.white.withOpacity(0.06),
-                      showCheckmark: false,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20), 
-                        side: BorderSide(color: selectedSubject == e.key ? Colors.transparent : Colors.white12, width: 0.5),
-                      ),
-                      onSelected: (_) => setState(() => selectedSubject = e.key),
-                    )).toList(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: contentWidth,
-                  child: TextField(
-                    controller: memoController, 
-                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: '何をする？', 
-                      hintStyle: GoogleFonts.inter(color: Colors.white38),
-                      filled: true, 
-                      fillColor: Colors.white.withOpacity(0.06), 
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white12, width: 0.5)),
-                    )
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: contentWidth, 
-                  child: ElevatedButton.icon(
-                    onPressed: saveLog, 
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00C3FF),
-                      foregroundColor: Colors.black87,
-                      minimumSize: const Size.fromHeight(50),
-                      elevation: 5,
-                      shadowColor: const Color(0xFF00C3FF).withOpacity(0.4),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
-                    label: Text("学習を記録する", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
-                  )
-                ),
-                const SizedBox(height: 25),
-                SizedBox(
-                  width: contentWidth,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("TODAY'S LOG", style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 1)),
-                          const SizedBox(height: 2),
-                          Text("今日の合計: $totalMinutesToday 分", style: GoogleFonts.inter(color: const Color(0xFF00C3FF), fontWeight: FontWeight.bold, fontSize: 12)),
-                        ],
-                      ),
-                      _buildHistoryButton(),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: SizedBox(
-                    width: contentWidth,
-                    child: todayLogs.isEmpty 
-                      ? const Center(child: Text("今日の履歴はまだありません", style: TextStyle(color: Colors.white24, fontSize: 13)))
-                      : ListView.builder(
-                          itemCount: todayLogs.length,
-                          itemBuilder: (_, i) {
-                            final log = todayLogs[i];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              color: Colors.white.withOpacity(0.04),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14), 
-                                side: BorderSide(color: Colors.white.withOpacity(0.06)),
-                              ),
-                              child: ListTile(
-                                dense: true,
-                                leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: const Color(0xFF00C3FF), size: 18),
-                                title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
-                                subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
-                              ),
-                            );
-                          },
                         ),
-                  ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: contentWidth,
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 8,
+                        children: subjectIcons.entries.map((e) => ChoiceChip(
+                          label: Text(e.key), 
+                          avatar: Icon(e.value, size: 14, color: selectedSubject == e.key ? Colors.black87 : const Color(0xFF00C3FF)),
+                          selected: selectedSubject == e.key,
+                          labelStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: selectedSubject == e.key ? Colors.black87 : Colors.white),
+                          selectedColor: const Color(0xFF00C3FF),
+                          backgroundColor: Colors.white.withOpacity(0.06),
+                          showCheckmark: false,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20), 
+                            side: BorderSide(color: selectedSubject == e.key ? Colors.transparent : Colors.white12, width: 0.5),
+                          ),
+                          onSelected: (_) => setState(() => selectedSubject = e.key),
+                        )).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: contentWidth,
+                      child: TextField(
+                        controller: memoController, 
+                        style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: '何をする？', 
+                          hintStyle: GoogleFonts.inter(color: Colors.white38),
+                          filled: true, 
+                          fillColor: Colors.white.withOpacity(0.06), 
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white12, width: 0.5)),
+                        )
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: contentWidth, 
+                      child: ElevatedButton.icon(
+                        onPressed: saveLog, 
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00C3FF),
+                          foregroundColor: Colors.black87,
+                          minimumSize: const Size.fromHeight(50),
+                          elevation: 5,
+                          shadowColor: const Color(0xFF00C3FF).withOpacity(0.4),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                        label: Text("学習を記録する", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                      )
+                    ),
+                    const SizedBox(height: 25),
+                    SizedBox(
+                      width: contentWidth,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("TODAY'S LOG", style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 1)),
+                              const SizedBox(height: 2),
+                              Text("今日の合計: $totalMinutesToday 分", style: GoogleFonts.inter(color: const Color(0xFF00C3FF), fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
+                          ),
+                          _buildHistoryButton(),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: SizedBox(
+                        width: contentWidth,
+                        child: todayLogs.isEmpty 
+                          ? const Center(child: Text("今日の履歴はまだありません", style: TextStyle(color: Colors.white24, fontSize: 13)))
+                          : ListView.builder(
+                              itemCount: todayLogs.length,
+                              itemBuilder: (_, i) {
+                                final log = todayLogs[i];
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  color: Colors.white.withOpacity(0.04),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14), 
+                                    side: BorderSide(color: Colors.white.withOpacity(0.06)),
+                                  ),
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: const Color(0xFF00C3FF), size: 18),
+                                    title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
+                                    subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
+                                  ),
+                                );
+                              },
+                            ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+
+          // --- 紙吹雪エフェクトを最前面に配置 ---
+          Align(
+            alignment: Alignment.topCenter, // 画面中央上部から噴射
+            child: ConfettiWidget(
+              confettiController: _confettiController,
+              blastDirectionality: BlastDirectionality.explosive, // 全方向に広がる
+              shouldLoop: false,
+              colors: const [
+                Color(0xFF00C3FF),
+                Colors.white,
+                Colors.cyanAccent,
+                Colors.blueAccent,
+              ],
+              numberOfParticles: 20, // 粒の数
+              gravity: 0.1,          // 重力（ゆっくり落ちる）
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -648,7 +639,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () async {
-          // 履歴画面へ遷移し、戻ってきたら再読み込み
           await Navigator.push(
             context,
             MaterialPageRoute(
