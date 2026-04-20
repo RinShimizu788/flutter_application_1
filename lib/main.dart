@@ -14,6 +14,7 @@ void main() {
   runApp(const MyApp());
 }
 
+// 学習ログのデータモデル
 class StudyLog {
   final String subject;
   final int minutes;
@@ -81,7 +82,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// 別画面：全履歴ページ
+// 別画面：すべての履歴を表示するページ
 class HistoryPage extends StatelessWidget {
   final List<StudyLog> allLogs;
   final Map<String, IconData> subjectIcons;
@@ -91,7 +92,11 @@ class HistoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("すべての学習履歴")),
+      appBar: AppBar(
+        title: const Text("すべての学習履歴"),
+        backgroundColor: const Color(0xFF1E1E2F),
+        elevation: 0,
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -108,11 +113,17 @@ class HistoryPage extends StatelessWidget {
                 itemBuilder: (_, i) {
                   final log = allLogs[i];
                   return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
                     color: Colors.white.withOpacity(0.05),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
                       leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: Colors.blueAccent),
-                      title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo),
-                      subtitle: Text('${log.subject} • ${log.minutes}分\n${log.formattedFullDate} ${log.formattedTimeRange}'),
+                      title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text('${log.subject} • ${log.minutes}分\n${log.formattedFullDate} ${log.formattedTimeRange}',
+                            style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                      ),
                     ),
                   );
                 },
@@ -162,7 +173,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
 
   double get progress => (elapsedSeconds / goalSeconds).clamp(0.0, 1.0);
 
-  // ⭐ 今日のログ抽出
+  // 今日のログ抽出
   List<StudyLog> get todayLogs {
     final now = DateTime.now();
     return logs.where((log) {
@@ -172,7 +183,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
     }).toList();
   }
 
-  // ⭐ 今日の合計学習時間（分）
+  // 今日の合計学習時間
   int get totalMinutesToday => todayLogs.fold(0, (sum, log) => sum + log.minutes);
 
   @override
@@ -240,12 +251,9 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
       final now = DateTime.now();
       final start = now.subtract(Duration(seconds: elapsedSeconds));
 
-      // 保存する「分」の計算（1分未満でも1分として記録するか、そのまま0にするか選べます）
-      final minutesToSave = elapsedSeconds ~/ 60;
-
       final log = StudyLog(
         subject: selectedSubject,
-        minutes: minutesToSave,
+        minutes: elapsedSeconds ~/ 60,
         memo: memoController.text,
         startTime: start,
         endTime: now,
@@ -286,7 +294,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
     }
   }
 
-  // --- UI構成 ---
   @override
   Widget build(BuildContext context) {
     const double contentWidth = 410;
@@ -334,7 +341,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                   ),
                 ),
                 const SizedBox(height: 15),
-                // 教科と入力
+                // 入力セクション
                 SizedBox(
                   width: contentWidth,
                   child: Wrap(
@@ -356,7 +363,7 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                 SizedBox(width: contentWidth, child: ElevatedButton(onPressed: saveLog, child: const Text("学習を記録する"))),
                 const SizedBox(height: 25),
 
-                // ⭐ 今日の履歴の見出し + 合計時間
+                // 見出しと「すべて表示」ネオンボタン
                 SizedBox(
                   width: contentWidth,
                   child: Row(
@@ -369,21 +376,41 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                           Text("今日の合計: $totalMinutesToday 分", style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 13)),
                         ],
                       ),
-                      TextButton.icon(
-                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryPage(allLogs: logs, subjectIcons: subjectIcons))),
-                        icon: const Icon(Icons.history),
-                        label: const Text("すべて表示"),
+                      // ⭐ カスタムデザインされた「すべて表示」ボタン
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
+                          boxShadow: [
+                            BoxShadow(color: Colors.blueAccent.withOpacity(0.1), blurRadius: 4, spreadRadius: 1),
+                          ],
+                        ),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryPage(allLogs: logs, subjectIcons: subjectIcons))),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            child: Row(
+                              children: [
+                                Icon(Icons.history, size: 16, color: Colors.blueAccent),
+                                SizedBox(width: 4),
+                                Text("すべて表示", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(height: 10),
 
                 // 履歴リスト
                 Expanded(
                   child: SizedBox(
                     width: contentWidth,
                     child: todayLogs.isEmpty 
-                      ? const Center(child: Text("今日の履歴はまだありません"))
+                      ? const Center(child: Text("今日の履歴はまだありません", style: TextStyle(color: Colors.white30)))
                       : ListView.builder(
                           itemCount: todayLogs.length,
                           itemBuilder: (_, i) {
@@ -409,17 +436,23 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
     );
   }
 
-  // --- ヘルパーWidget ---
+  // --- パーツWidget群 ---
   Widget buildCDWithProgress() {
     return SizedBox(
       width: 120, height: 120,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          CircularProgressIndicator(value: progress),
+          CircularProgressIndicator(value: progress, strokeWidth: 3, backgroundColor: Colors.white10),
           RotationTransition(
             turns: _rotation,
-            child: Container(width: 100, height: 100, decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black26)),
+            child: Container(
+              width: 100, height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: SweepGradient(colors: [Colors.blueAccent.withOpacity(0.1), Colors.blueAccent, Colors.blueAccent.withOpacity(0.1)]),
+              ),
+            ),
           ),
           RotationTransition(
             turns: _rotation,
@@ -433,12 +466,12 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
   Widget buildPlayerControls() {
     return Column(
       children: [
-        Text(currentTrack, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(currentTrack, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(icon: const Icon(Icons.skip_previous), onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex - 1 + tracks.length) % tracks.length); if (isRunning) playStudyBgm(); }),
-            IconButton(icon: Icon(isRunning ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 40), onPressed: isRunning ? stopTimer : startTimer),
+            IconButton(icon: Icon(isRunning ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 45, color: Colors.blueAccent), onPressed: isRunning ? stopTimer : startTimer),
             IconButton(icon: const Icon(Icons.skip_next), onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex + 1) % tracks.length); if (isRunning) playStudyBgm(); }),
           ],
         ),
@@ -448,12 +481,12 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
 
   Widget glassCard({required Widget child}) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
         child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.08), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.2))),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(color: Colors.white.withOpacity(0.07), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withOpacity(0.15))),
           child: child,
         ),
       ),
