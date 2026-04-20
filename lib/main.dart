@@ -36,12 +36,13 @@ class StudyLog {
     };
   }
 
+  // ⭐ Null安全に対応させたファクトリ
   factory StudyLog.fromMap(Map<String, dynamic> map) {
     return StudyLog(
-      subject: map['subject'],
-      minutes: map['minutes'],
-      memo: map['memo'],
-      date: DateTime.parse(map['date']),
+      subject: map['subject']?.toString() ?? '情報',
+      minutes: map['minutes'] is int ? map['minutes'] : 0,
+      memo: map['memo']?.toString() ?? '',
+      date: map['date'] != null ? DateTime.parse(map['date']) : DateTime.now(),
     );
   }
 }
@@ -106,14 +107,12 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     'その他': Icons.more_horiz,
   };
 
-  double get progress =>
-      (elapsedSeconds / goalSeconds).clamp(0.0, 1.0);
+  double get progress => (elapsedSeconds / goalSeconds).clamp(0.0, 1.0);
 
   @override
   void initState() {
     super.initState();
-    loadLogs();
-    playIdleBgm();
+    _initApp(); // 初期化処理をまとめる
 
     _controller = AnimationController(
       vsync: this,
@@ -121,6 +120,15 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     );
 
     _rotation = Tween<double>(begin: 0, end: 1).animate(_controller);
+  }
+
+  // ⭐ データ読み込みと音楽の初期設定
+  Future<void> _initApp() async {
+    // 【重要】もし履歴が壊れていたら下の行のコメントアウトを外して1度だけ実行してください
+    // final prefs = await SharedPreferences.getInstance(); await prefs.clear();
+    
+    await loadLogs();
+    await playIdleBgm();
   }
 
   @override
@@ -142,17 +150,19 @@ class _StudyTimerPageState extends State<StudyTimerPage>
   Future<void> playIdleBgm() async {
     await player.stop();
     await player.setReleaseMode(ReleaseMode.loop);
-    await player.play(AssetSource('idle.mp3'));
-    await player.setVolume(volume*0.4);
+    try {
+      await player.play(AssetSource('idle.mp3'));
+      await player.setVolume(volume * 0.4);
+    } catch (e) {
+      debugPrint("Idle BGM error: $e");
+    }
   }
 
   void startTimer() {
     timer?.cancel();
     setState(() => isRunning = true);
-
     playStudyBgm();
     _controller.repeat();
-
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => elapsedSeconds++);
     });
@@ -161,52 +171,69 @@ class _StudyTimerPageState extends State<StudyTimerPage>
   void stopTimer() {
     timer?.cancel();
     setState(() => isRunning = false);
-
     playIdleBgm();
     _controller.stop();
   }
 
+  // ⭐ 修正版：保存ロジック
   Future<void> saveLog() async {
+    // 1分未満でもテスト用に保存したい場合はここを 0 にしてください
     final minutes = elapsedSeconds ~/ 60;
-    if (minutes == 0) return;
+    if (elapsedSeconds < 1) return; 
 
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList('study_logs') ?? [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getStringList('study_logs') ?? [];
 
-    final log = StudyLog(
-      subject: selectedSubject,
-      minutes: minutes,
-      memo: memoController.text,
-      date: DateTime.now(),
-    );
+      final log = StudyLog(
+        subject: selectedSubject,
+        minutes: minutes,
+        memo: memoController.text,
+        date: DateTime.now(),
+      );
 
-    stored.add(jsonEncode(log.toMap()));
-    await prefs.setStringList('study_logs', stored);
+      stored.add(jsonEncode(log.toMap()));
+      await prefs.setStringList('study_logs', stored);
 
-    await loadLogs();
+      // 保存後に再読み込み
+      await loadLogs();
 
-    setState(() {
-      elapsedSeconds = 0;
-      memoController.clear();
-      isRunning = false;
-    });
+      setState(() {
+        elapsedSeconds = 0;
+        memoController.clear();
+        isRunning = false;
+      });
 
-    timer?.cancel();
-    playIdleBgm();
-    _controller.stop();
+      timer?.cancel();
+      playIdleBgm();
+      _controller.stop();
+    } catch (e) {
+      debugPrint("Save error: $e");
+    }
   }
 
+  // ⭐ 修正版：読み込みロジック（エラー行をスキップ）
   Future<void> loadLogs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList('study_logs') ?? [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getStringList('study_logs') ?? [];
 
-    setState(() {
-      logs = stored
-          .map((e) => StudyLog.fromMap(jsonDecode(e)))
-          .toList()
-          .reversed
-          .toList();
-    });
+      List<StudyLog> loaded = [];
+      for (var item in stored) {
+        try {
+          final decoded = jsonDecode(item);
+          loaded.add(StudyLog.fromMap(decoded));
+        } catch (e) {
+          debugPrint("Failed to decode log: $e");
+        }
+      }
+
+      setState(() {
+        logs = loaded.reversed.toList();
+      });
+    } catch (e) {
+      debugPrint("Load error: $e");
+    }
   }
 
   Widget buildCDWithProgress() {
@@ -217,7 +244,6 @@ class _StudyTimerPageState extends State<StudyTimerPage>
         alignment: Alignment.center,
         children: [
           CircularProgressIndicator(value: progress),
-
           RotationTransition(
             turns: _rotation,
             child: Container(
@@ -241,7 +267,6 @@ class _StudyTimerPageState extends State<StudyTimerPage>
               ),
             ),
           ),
-
           RotationTransition(
             turns: _rotation,
             child: ClipOval(
@@ -250,6 +275,7 @@ class _StudyTimerPageState extends State<StudyTimerPage>
                 width: 45,
                 height: 45,
                 fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.music_note),
               ),
             ),
           ),
@@ -258,20 +284,10 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     );
   }
 
-// 追加なし（そのまま全部）
-
-// ↓ 途中は同じなので変更点だけじゃなく全部載せる
-
-// （※省略せず全文なので長いです）
-
-// ===============================
-// 🔽 ここが追加ポイント
-// ===============================
-
   Widget buildPlayerControls() {
     return Column(
       children: [
-        Text(currentTrack),
+        Text(currentTrack, style: const TextStyle(fontWeight: FontWeight.bold)),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -279,23 +295,20 @@ class _StudyTimerPageState extends State<StudyTimerPage>
               icon: const Icon(Icons.skip_previous),
               onPressed: () {
                 setState(() {
-                  selectedTrackIndex =
-                      (selectedTrackIndex - 1 + tracks.length) %
-                          tracks.length;
+                  selectedTrackIndex = (selectedTrackIndex - 1 + tracks.length) % tracks.length;
                 });
                 if (isRunning) playStudyBgm();
               },
             ),
             IconButton(
-              icon: Icon(isRunning ? Icons.pause : Icons.play_arrow),
+              icon: Icon(isRunning ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 40),
               onPressed: isRunning ? stopTimer : startTimer,
             ),
             IconButton(
               icon: const Icon(Icons.skip_next),
               onPressed: () {
                 setState(() {
-                  selectedTrackIndex =
-                      (selectedTrackIndex + 1) % tracks.length;
+                  selectedTrackIndex = (selectedTrackIndex + 1) % tracks.length;
                 });
                 if (isRunning) playStudyBgm();
               },
@@ -306,18 +319,12 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     );
   }
 
-  // ⭐③ 追加：音量コントロール
   Widget buildVolumeControl() {
     return Column(
       children: [
-        const SizedBox(height: 10),
-        const Text("音量"),
+        const Text("Volume", style: TextStyle(fontSize: 12)),
         Slider(
           value: volume,
-          min: 0.0,
-          max: 1.0,
-          divisions: 10,
-          label: (volume * 100).toInt().toString(),
           onChanged: (value) async {
             setState(() => volume = value);
             await player.setVolume(volume);
@@ -350,140 +357,100 @@ class _StudyTimerPageState extends State<StudyTimerPage>
     const double contentWidth = 410;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-      ),
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
         extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-        ),
         body: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [
-                Color(0xFF1E1E2F),
-                Color(0xFF3A3A5A),
-              ],
+              colors: [Color(0xFF1E1E2F), Color(0xFF3A3A5A)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 80, 16, 16),
-            child: Column(
-              children: [
-                /// ⭐ メインカード
-                Center(
-                  child: SizedBox(
-                    width: contentWidth,
-                    child: glassCard(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.center,
-                            children: [
-                              buildCDWithProgress(),
-                              const SizedBox(width: 20),
-                              Column(
-                                children: [
-                                  Text(
-                                    'StudyTimer',
-                                    style: GoogleFonts.montserrat(
-                                        fontSize: 16),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    '${elapsedSeconds ~/ 60} 分 ${elapsedSeconds % 60} 秒',
-                                    style: const TextStyle(
-                                      fontSize: 32,
-                                      fontWeight:
-                                          FontWeight.bold,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
+                  Center(
+                    child: SizedBox(
+                      width: contentWidth,
+                      child: glassCard(
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                buildCDWithProgress(),
+                                const SizedBox(width: 24),
+                                Column(
+                                  children: [
+                                    Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 2)),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
+                                      style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-
-                          // ⭐④ ここに追加！！
-                          buildPlayerControls(),
-                          buildVolumeControl(), // ←音量スライダー
-                        ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            buildPlayerControls(),
+                            buildVolumeControl(),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 20),
-
-                /// ⭐ 教科ボタン
-                Center(
-                  child: SizedBox(
+                  const SizedBox(height: 20),
+                  SizedBox(
                     width: contentWidth,
                     child: Wrap(
                       alignment: WrapAlignment.center,
-                      spacing: 10,
+                      spacing: 8,
                       children: subjectIcons.entries.map((e) {
                         return ChoiceChip(
-                          label: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(e.value, size: 18),
-                              const SizedBox(width: 6),
-                              Text(e.key),
-                            ],
-                          ),
+                          label: Text(e.key),
+                          avatar: Icon(e.value, size: 16),
                           selected: selectedSubject == e.key,
-                          onSelected: (_) {
-                            setState(
-                                () => selectedSubject = e.key);
-                          },
+                          onSelected: (_) => setState(() => selectedSubject = e.key),
                         );
                       }).toList(),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 10),
-
-                /// ⭐ 入力欄
-                Center(
-                  child: SizedBox(
+                  const SizedBox(height: 12),
+                  SizedBox(
                     width: contentWidth,
                     child: TextField(
                       controller: memoController,
                       decoration: const InputDecoration(
-                        labelText: '学習内容',
-                        border: OutlineInputBorder(),
+                        hintText: '何をする？',
+                        filled: true,
+                        fillColor: Colors.white10,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
                       ),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 10),
-
-                /// ⭐ 保存ボタン
-                Center(
-                  child: SizedBox(
+                  const SizedBox(height: 12),
+                  SizedBox(
                     width: contentWidth,
-                    child: ElevatedButton(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
                       onPressed: saveLog,
-                      child: const Text('保存'),
+                      icon: const Icon(Icons.save),
+                      label: const Text("学習を記録する"),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 10),
-
-                /// ⭐ 履歴
-                Expanded(
-                  child: Center(
+                  const SizedBox(height: 20),
+                  const Text("HISTORY", style: TextStyle(fontSize: 12, letterSpacing: 1.5)),
+                  Expanded(
                     child: SizedBox(
                       width: contentWidth,
                       child: ListView.builder(
@@ -491,24 +458,21 @@ class _StudyTimerPageState extends State<StudyTimerPage>
                         itemBuilder: (_, i) {
                           final log = logs[i];
                           return Card(
-                            color:
-                                Colors.white.withOpacity(0.05),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            color: Colors.white.withOpacity(0.05),
                             child: ListTile(
-                              title: Text(
-                                log.memo.isNotEmpty
-                                    ? log.memo
-                                    : '（メモなし）',
-                              ),
-                              subtitle: Text(
-                                  '${log.subject} / ${log.minutes}分'),
+                              leading: Icon(subjectIcons[log.subject] ?? Icons.book),
+                              title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo),
+                              subtitle: Text('${log.subject} • ${log.minutes}分'),
+                              trailing: Text('${log.date.month}/${log.date.day}', style: const TextStyle(fontSize: 10)),
                             ),
                           );
                         },
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
