@@ -87,24 +87,74 @@ class MyApp extends StatelessWidget {
 }
 
 // ==========================================
-// 2. 全履歴画面：HistoryPage
+// 2. 全履歴画面：HistoryPage (三点リーダー削除機能付き)
 // ==========================================
-class HistoryPage extends StatelessWidget {
+class HistoryPage extends StatefulWidget {
   final List<StudyLog> allLogs;
   final Map<String, IconData> subjectIcons;
 
   const HistoryPage({super.key, required this.allLogs, required this.subjectIcons});
 
-  int get totalMinutesAll => allLogs.fold(0, (sum, log) => sum + log.minutes);
+  @override
+  State<HistoryPage> createState() => _HistoryPageState();
+}
+
+class _HistoryPageState extends State<HistoryPage> {
+  int get totalMinutesAll => widget.allLogs.fold(0, (sum, log) => sum + log.minutes);
 
   Map<String, List<StudyLog>> get groupedLogs {
     Map<String, List<StudyLog>> groups = {};
-    for (var log in allLogs) {
+    for (var log in widget.allLogs) {
       String dateKey = log.formattedFullDate;
       if (groups[dateKey] == null) groups[dateKey] = [];
       groups[dateKey]!.add(log);
     }
     return groups;
+  }
+
+  // 特定のログを削除するメソッド
+  Future<void> _deleteLog(StudyLog log) async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getStringList('study_logs') ?? [];
+
+    // 開始時間をキーにしてSharedPreferencesから削除
+    stored.removeWhere((item) {
+      final map = jsonDecode(item);
+      return map['startTime'] == log.startTime.toIso8601String();
+    });
+
+    await prefs.setStringList('study_logs', stored);
+
+    // メモリ上のリストも更新してUIを再描画
+    setState(() {
+      widget.allLogs.remove(log);
+    });
+  }
+
+  // 削除確認ダイアログ
+  void _showDeleteConfirmDialog(StudyLog log) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1B2339),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("ログの削除", style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        content: const Text("この学習記録を削除しますか？"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("キャンセル", style: TextStyle(color: Colors.white38)),
+          ),
+          TextButton(
+            onPressed: () {
+              _deleteLog(log);
+              Navigator.pop(context);
+            },
+            child: const Text("削除", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -116,6 +166,10 @@ class HistoryPage extends StatelessWidget {
         title: Text("ALL HISTORY", style: GoogleFonts.montserrat(letterSpacing: 1, fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: const Color(0xFF0A0D18),
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: Container(
         width: double.infinity,
@@ -130,7 +184,7 @@ class HistoryPage extends StatelessWidget {
           children: [
             _buildTotalStatsCard(),
             Expanded(
-              child: allLogs.isEmpty
+              child: widget.allLogs.isEmpty
                   ? const Center(child: Text("まだ履歴がありません"))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -177,7 +231,7 @@ class HistoryPage extends StatelessWidget {
 
   Widget _buildTotalStatsCard() {
     Map<String, int> stats = {};
-    for (var log in allLogs) {
+    for (var log in widget.allLogs) {
       stats[log.subject] = (stats[log.subject] ?? 0) + log.minutes;
     }
     return Padding(
@@ -204,7 +258,7 @@ class HistoryPage extends StatelessWidget {
                   children: stats.entries.map((e) => Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05), 
+                      color: Colors.white.withOpacity(0.05),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: Colors.white12, width: 0.5),
                     ),
@@ -225,14 +279,34 @@ class HistoryPage extends StatelessWidget {
       color: Colors.white.withOpacity(0.04),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14), 
+        borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: Colors.white.withOpacity(0.06)),
       ),
       child: ListTile(
         dense: true,
-        leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: const Color(0xFF00C3FF), size: 18),
+        leading: Icon(widget.subjectIcons[log.subject] ?? Icons.book, color: const Color(0xFF00C3FF), size: 18),
         title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
         subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: GoogleFonts.inter(color: Colors.white54, fontSize: 11)),
+        trailing: PopupMenuButton<String>(
+          icon: const Icon(Icons.more_vert, color: Colors.white38, size: 20),
+          color: const Color(0xFF1B2339),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white12)),
+          onSelected: (value) {
+            if (value == 'delete') _showDeleteConfirmDialog(log);
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                  SizedBox(width: 8),
+                  Text("削除", style: TextStyle(color: Colors.redAccent, fontSize: 14)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -573,7 +647,19 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryPage(allLogs: logs, subjectIcons: subjectIcons))),
+        onTap: () async {
+          // 履歴画面へ遷移し、戻ってきたら再読み込み
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => HistoryPage(
+                allLogs: List.from(logs), 
+                subjectIcons: subjectIcons,
+              ),
+            ),
+          );
+          loadLogs();
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: Row(
