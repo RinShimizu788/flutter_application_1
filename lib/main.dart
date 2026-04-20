@@ -156,7 +156,7 @@ class HistoryPage extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(color: const Color(0xFF00C3FF).withOpacity(0.3), width: 0.5),
                                     ),
-                                    child: Text("${dailyTotal} 分", style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF00C3FF), fontWeight: FontWeight.bold)),
+                                    child: Text("${dailyTotal} 分", style: GoogleFonts.jetBrainsMono(fontSize: 10, color: const Color(0xFF00C3FF), fontWeight: FontWeight.bold)),
                                   ),
                                   const Expanded(child: Divider(indent: 12, color: Colors.white10)),
                                 ],
@@ -197,7 +197,6 @@ class HistoryPage extends StatelessWidget {
               children: [
                 Text("TOTAL STUDY TIME", style: GoogleFonts.montserrat(fontSize: 11, letterSpacing: 2, color: const Color(0xFF00C3FF), fontWeight: FontWeight.w600)),
                 const SizedBox(height: 10),
-                // 見やすいフォントに変更済み
                 Text("${(totalMinutesAll ~/ 60)}h ${(totalMinutesAll % 60)}m", style: GoogleFonts.jetBrainsMono(fontSize: 34, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1)),
                 const Divider(height: 28, color: Colors.white12),
                 Wrap(
@@ -430,7 +429,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                                 children: [
                                   Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 3, fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70)),
                                   const SizedBox(height: 4),
-                                  // 見やすいフォントに変更済み
                                   Text(
                                     '${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
                                     style: GoogleFonts.jetBrainsMono(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
@@ -598,16 +596,20 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
         children: [
           CircularProgressIndicator(
             value: progress, 
-            strokeWidth: 4, 
+            strokeWidth: 3, 
             backgroundColor: Colors.white10,
-            color: const Color(0xFF00C3FF),
+            color: const Color(0xFF00C3FF).withOpacity(0.5),
           ),
           if(isRunning) Container(
-            width: 110, height: 110,
+            width: 100, height: 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               boxShadow: [
-                BoxShadow(color: const Color(0xFF00C3FF).withOpacity(0.4), blurRadius: 15, spreadRadius: 1),
+                BoxShadow(
+                  color: const Color(0xFF00C3FF).withOpacity(0.15), 
+                  blurRadius: 10, 
+                  spreadRadius: 1,
+                ),
               ]
             ),
           ),
@@ -618,7 +620,11 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: SweepGradient(
-                  colors: [const Color(0xFF00C3FF).withOpacity(0.1), const Color(0xFF00C3FF), const Color(0xFF00C3FF).withOpacity(0.1)],
+                  colors: [
+                    const Color(0xFF00C3FF).withOpacity(0.05), 
+                    const Color(0xFF00C3FF).withOpacity(0.3), 
+                    const Color(0xFF00C3FF).withOpacity(0.05)
+                  ],
                   stops: const [0.0, 0.5, 1.0],
                 ),
               ),
@@ -632,10 +638,10 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.black, width: 2),
                 boxShadow: [
-                  const BoxShadow(color: Colors.black87, blurRadius: 3),
+                  const BoxShadow(color: Colors.black54, blurRadius: 3),
                 ]
               ),
-              child: ClipOval(child: Image.asset('assets/$currentImage', width: 42, height: 42, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note, color: Color(0xFF00C3FF), size: 20))),
+              child: ClipOval(child: Image.asset('assets/$currentImage', width: 42, height: 42, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note, color: Colors.white24, size: 20))),
             ),
           ),
         ],
