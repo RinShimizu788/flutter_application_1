@@ -77,7 +77,9 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         useMaterial3: true,
-        colorSchemeSeed: Colors.blue,
+        colorSchemeSeed: const Color(0xFF00C3FF),
+        scaffoldBackgroundColor: const Color(0xFF0A0D18),
+        textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       ),
       home: const StudyTimerPage(),
     );
@@ -85,7 +87,7 @@ class MyApp extends StatelessWidget {
 }
 
 // ==========================================
-// 2. 全履歴画面：HistoryPage（日付グループ化表示）
+// 2. 全履歴画面：HistoryPage
 // ==========================================
 class HistoryPage extends StatelessWidget {
   final List<StudyLog> allLogs;
@@ -95,7 +97,6 @@ class HistoryPage extends StatelessWidget {
 
   int get totalMinutesAll => allLogs.fold(0, (sum, log) => sum + log.minutes);
 
-  // ログを日付ごとにグループ化するゲッター
   Map<String, List<StudyLog>> get groupedLogs {
     Map<String, List<StudyLog>> groups = {};
     for (var log in allLogs) {
@@ -112,15 +113,15 @@ class HistoryPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("すべての学習履歴"),
-        backgroundColor: const Color(0xFF1E1E2F),
+        title: Text("ALL HISTORY", style: GoogleFonts.montserrat(letterSpacing: 1, fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: const Color(0xFF0A0D18),
         elevation: 0,
       ),
       body: Container(
         width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF1E1E2F), Color(0xFF3A3A5A)],
+            colors: [Color(0xFF0A0D18), Color(0xFF1B2339)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -130,7 +131,7 @@ class HistoryPage extends StatelessWidget {
             _buildTotalStatsCard(),
             Expanded(
               child: allLogs.isEmpty
-                  ? const Center(child: Text("履歴がありません"))
+                  ? const Center(child: Text("まだ履歴がありません"))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: groups.keys.length,
@@ -143,25 +144,26 @@ class HistoryPage extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
                               child: Row(
                                 children: [
-                                  Text(date, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                                  const SizedBox(width: 10),
+                                  Text(date, style: GoogleFonts.inter(fontWeight: FontWeight.w700, color: const Color(0xFF00C3FF), fontSize: 13)),
+                                  const SizedBox(width: 12),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: Colors.blueAccent.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
+                                      color: const Color(0xFF00C3FF).withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: const Color(0xFF00C3FF).withOpacity(0.3), width: 0.5),
                                     ),
-                                    child: Text("計 $dailyTotal 分", style: const TextStyle(fontSize: 10, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+                                    child: Text("${dailyTotal} 分", style: GoogleFonts.inter(fontSize: 10, color: const Color(0xFF00C3FF), fontWeight: FontWeight.bold)),
                                   ),
-                                  const Expanded(child: Divider(indent: 10, color: Colors.white10)),
+                                  const Expanded(child: Divider(indent: 12, color: Colors.white10)),
                                 ],
                               ),
                             ),
                             ...logsInDate.map((log) => _buildDetailCard(log)).toList(),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 12),
                           ],
                         );
                       },
@@ -181,28 +183,32 @@ class HistoryPage extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(16.0),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.blueAccent.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+              color: const Color(0xFF00C3FF).withOpacity(0.05),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFF00C3FF).withOpacity(0.2)),
             ),
             child: Column(
               children: [
-                const Text("TOTAL STUDY TIME", style: TextStyle(fontSize: 11, letterSpacing: 1.5, color: Colors.blueAccent)),
-                const SizedBox(height: 8),
-                Text("${(totalMinutesAll ~/ 60)}h ${(totalMinutesAll % 60)}m", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-                const Divider(height: 24, color: Colors.white10),
+                Text("TOTAL STUDY TIME", style: GoogleFonts.montserrat(fontSize: 11, letterSpacing: 2, color: const Color(0xFF00C3FF), fontWeight: FontWeight.w600)),
+                const SizedBox(height: 10),
+                Text("${(totalMinutesAll ~/ 60)}h ${(totalMinutesAll % 60)}m", style: GoogleFonts.orbitron(fontSize: 34, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1)),
+                const Divider(height: 28, color: Colors.white12),
                 Wrap(
-                  spacing: 8, runSpacing: 8,
+                  spacing: 10, runSpacing: 10,
                   children: stats.entries.map((e) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
-                    child: Text("${e.key}: ${e.value}分", style: const TextStyle(fontSize: 10, color: Colors.white70)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05), 
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12, width: 0.5),
+                    ),
+                    child: Text("${e.key}: ${e.value}分", style: GoogleFonts.inter(fontSize: 10, color: Colors.white70)),
                   )).toList(),
                 ),
               ],
@@ -215,14 +221,19 @@ class HistoryPage extends StatelessWidget {
 
   Widget _buildDetailCard(StudyLog log) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      color: Colors.white.withOpacity(0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      margin: const EdgeInsets.only(bottom: 8),
+      color: Colors.white.withOpacity(0.04),
+      elevation: 0,
+      // 修正ポイント: border を side に変更
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14), 
+        side: BorderSide(color: Colors.white.withOpacity(0.06)),
+      ),
       child: ListTile(
         dense: true,
-        leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: Colors.blueAccent, size: 18),
-        title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-        subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+        leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: const Color(0xFF00C3FF), size: 18),
+        title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
+        subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: GoogleFonts.inter(color: Colors.white54, fontSize: 11)),
       ),
     );
   }
@@ -263,10 +274,10 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
   late Animation<double> _rotation;
 
   final Map<String, IconData> subjectIcons = {
-    '情報': Icons.computer,
-    '数学': Icons.calculate,
-    '英語': Icons.language,
-    'その他': Icons.more_horiz,
+    '情報': Icons.computer_rounded,
+    '数学': Icons.calculate_rounded,
+    '英語': Icons.language_rounded,
+    'その他': Icons.more_horiz_rounded,
   };
 
   double get progress => (elapsedSeconds / goalSeconds).clamp(0.0, 1.0);
@@ -396,14 +407,14 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
       extendBodyBehindAppBar: true,
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(colors: [Color(0xFF1E1E2F), Color(0xFF3A3A5A)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+          gradient: LinearGradient(colors: [Color(0xFF0A0D18), Color(0xFF1B2339)], begin: Alignment.topLeft, end: Alignment.bottomRight),
         ),
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
               children: [
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Center(
                   child: SizedBox(
                     width: contentWidth,
@@ -414,48 +425,91 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               buildCDWithProgress(),
-                              const SizedBox(width: 24),
+                              const SizedBox(width: 28),
                               Column(
                                 children: [
-                                  Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 2, fontSize: 12)),
+                                  Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 3, fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70)),
+                                  const SizedBox(height: 4),
                                   Text(
                                     '${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
-                                    style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+                                    style: GoogleFonts.orbitron(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
                                   ),
                                 ],
                               ),
                             ],
                           ),
-                          const SizedBox(height: 15),
+                          const SizedBox(height: 18),
                           buildPlayerControls(),
-                          Slider(value: volume, onChanged: (v) { setState(() => volume = v); player.setVolume(v); }),
+                          const SizedBox(height: 5),
+                          Slider(
+                            value: volume, 
+                            activeColor: const Color(0xFF00C3FF),
+                            inactiveColor: Colors.white12,
+                            onChanged: (v) { setState(() => volume = v); player.setVolume(v); }
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 16),
                 SizedBox(
                   width: contentWidth,
                   child: Wrap(
                     alignment: WrapAlignment.center,
                     spacing: 8,
                     children: subjectIcons.entries.map((e) => ChoiceChip(
-                      label: Text(e.key), avatar: Icon(e.value, size: 14),
+                      label: Text(e.key), 
+                      avatar: Icon(e.value, size: 14, color: selectedSubject == e.key ? Colors.black87 : const Color(0xFF00C3FF)),
                       selected: selectedSubject == e.key,
+                      labelStyle: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: selectedSubject == e.key ? Colors.black87 : Colors.white),
+                      selectedColor: const Color(0xFF00C3FF),
+                      backgroundColor: Colors.white.withOpacity(0.06),
+                      showCheckmark: false,
+                      // 修正ポイント: border を side に変更
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20), 
+                        side: BorderSide(color: selectedSubject == e.key ? Colors.transparent : Colors.white12, width: 0.5),
+                      ),
                       onSelected: (_) => setState(() => selectedSubject = e.key),
                     )).toList(),
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 SizedBox(
                   width: contentWidth,
-                  child: TextField(controller: memoController, decoration: const InputDecoration(hintText: '何をする？', filled: true, fillColor: Colors.white10, border: OutlineInputBorder())),
+                  child: TextField(
+                    controller: memoController, 
+                    style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: '何をする？', 
+                      hintStyle: GoogleFonts.inter(color: Colors.white38),
+                      filled: true, 
+                      fillColor: Colors.white.withOpacity(0.06), 
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white12, width: 0.5)),
+                    )
+                  ),
                 ),
-                const SizedBox(height: 10),
-                SizedBox(width: contentWidth, child: ElevatedButton(onPressed: saveLog, child: const Text("学習を記録する"))),
-                const SizedBox(height: 20),
-                // 見出しセクション
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: contentWidth, 
+                  child: ElevatedButton.icon(
+                    onPressed: saveLog, 
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00C3FF),
+                      foregroundColor: Colors.black87,
+                      minimumSize: const Size.fromHeight(50),
+                      elevation: 5,
+                      shadowColor: const Color(0xFF00C3FF).withOpacity(0.4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    icon: const Icon(Icons.check_circle_outline_rounded, size: 18),
+                    label: Text("学習を記録する", style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 14)),
+                  )
+                ),
+                const SizedBox(height: 25),
                 SizedBox(
                   width: contentWidth,
                   child: Row(
@@ -464,31 +518,39 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text("TODAY'S LOG", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                          Text("今日の合計: $totalMinutesToday 分", style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                          Text("TODAY'S LOG", style: GoogleFonts.montserrat(fontWeight: FontWeight.w700, fontSize: 14, letterSpacing: 1)),
+                          const SizedBox(height: 2),
+                          Text("今日の合計: $totalMinutesToday 分", style: GoogleFonts.inter(color: const Color(0xFF00C3FF), fontWeight: FontWeight.bold, fontSize: 12)),
                         ],
                       ),
                       _buildHistoryButton(),
                     ],
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
                 Expanded(
                   child: SizedBox(
                     width: contentWidth,
                     child: todayLogs.isEmpty 
-                      ? const Center(child: Text("今日の履歴はまだありません", style: TextStyle(color: Colors.white24)))
+                      ? const Center(child: Text("今日の履歴はまだありません", style: TextStyle(color: Colors.white24, fontSize: 13)))
                       : ListView.builder(
                           itemCount: todayLogs.length,
                           itemBuilder: (_, i) {
                             final log = todayLogs[i];
                             return Card(
                               margin: const EdgeInsets.only(bottom: 8),
-                              color: Colors.white.withOpacity(0.05),
+                              color: Colors.white.withOpacity(0.04),
+                              elevation: 0,
+                              // 修正ポイント: border を side に変更
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14), 
+                                side: BorderSide(color: Colors.white.withOpacity(0.06)),
+                              ),
                               child: ListTile(
-                                leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: Colors.blueAccent, size: 18),
-                                title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: const TextStyle(fontSize: 13)),
-                                subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: const TextStyle(fontSize: 11)),
+                                dense: true,
+                                leading: Icon(subjectIcons[log.subject] ?? Icons.book, color: const Color(0xFF00C3FF), size: 18),
+                                title: Text(log.memo.isEmpty ? '（メモなし）' : log.memo, style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.white)),
+                                subtitle: Text('${log.subject} • ${log.minutes}分 / ${log.formattedTimeRange}', style: GoogleFonts.inter(fontSize: 11, color: Colors.white54)),
                               ),
                             );
                           },
@@ -507,19 +569,21 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
-        boxShadow: [BoxShadow(color: Colors.blueAccent.withOpacity(0.1), blurRadius: 4)],
+        border: Border.all(color: const Color(0xFF00C3FF).withOpacity(0.4), width: 0.5),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFF00C3FF).withOpacity(0.12), blurRadius: 6, spreadRadius: 0),
+        ],
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryPage(allLogs: logs, subjectIcons: subjectIcons))),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: Row(
             children: [
-              Icon(Icons.history, size: 14, color: Colors.blueAccent),
-              SizedBox(width: 4),
-              Text("すべて表示", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 10)),
+              const Icon(Icons.history_toggle_off_rounded, size: 14, color: Color(0xFF00C3FF)),
+              const SizedBox(width: 6),
+              Text("ALL HISTORY", style: GoogleFonts.montserrat(color: const Color(0xFF00C3FF), fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.5)),
             ],
           ),
         ),
@@ -533,20 +597,47 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
       child: Stack(
         alignment: Alignment.center,
         children: [
-          CircularProgressIndicator(value: progress, strokeWidth: 3, backgroundColor: Colors.white10),
+          CircularProgressIndicator(
+            value: progress, 
+            strokeWidth: 4, 
+            backgroundColor: Colors.white10,
+            color: const Color(0xFF00C3FF),
+          ),
+          if(isRunning) Container(
+            width: 110, height: 110,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(color: const Color(0xFF00C3FF).withOpacity(0.4), blurRadius: 15, spreadRadius: 1),
+              ]
+            ),
+          ),
           RotationTransition(
             turns: _rotation,
             child: Container(
               width: 90, height: 90,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: SweepGradient(colors: [Colors.blueAccent.withOpacity(0.1), Colors.blueAccent, Colors.blueAccent.withOpacity(0.1)]),
+                gradient: SweepGradient(
+                  colors: [const Color(0xFF00C3FF).withOpacity(0.1), const Color(0xFF00C3FF), const Color(0xFF00C3FF).withOpacity(0.1)],
+                  stops: const [0.0, 0.5, 1.0],
+                ),
               ),
             ),
           ),
           RotationTransition(
             turns: _rotation,
-            child: ClipOval(child: Image.asset('assets/$currentImage', width: 40, height: 40, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note))),
+            child: Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black, width: 2),
+                boxShadow: [
+                  const BoxShadow(color: Colors.black87, blurRadius: 3),
+                ]
+              ),
+              child: ClipOval(child: Image.asset('assets/$currentImage', width: 42, height: 42, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Icon(Icons.music_note, color: Color(0xFF00C3FF), size: 20))),
+            ),
           ),
         ],
       ),
@@ -556,13 +647,14 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
   Widget buildPlayerControls() {
     return Column(
       children: [
-        Text(currentTrack, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        Text(currentTrack, style: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.white)),
+        const SizedBox(height: 2),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            IconButton(icon: const Icon(Icons.skip_previous, size: 20), onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex - 1 + tracks.length) % tracks.length); if (isRunning) playStudyBgm(); }),
-            IconButton(icon: Icon(isRunning ? Icons.pause_circle_filled : Icons.play_circle_filled, size: 40, color: Colors.blueAccent), onPressed: isRunning ? stopTimer : startTimer),
-            IconButton(icon: const Icon(Icons.skip_next, size: 20), onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex + 1) % tracks.length); if (isRunning) playStudyBgm(); }),
+            IconButton(icon: const Icon(Icons.skip_previous_rounded, size: 22), color: Colors.white70, onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex - 1 + tracks.length) % tracks.length); if (isRunning) playStudyBgm(); }),
+            IconButton(icon: Icon(isRunning ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded, size: 48, color: const Color(0xFF00C3FF)), onPressed: isRunning ? stopTimer : startTimer),
+            IconButton(icon: const Icon(Icons.skip_next_rounded, size: 22), color: Colors.white70, onPressed: () { setState(() => selectedTrackIndex = (selectedTrackIndex + 1) % tracks.length); if (isRunning) playStudyBgm(); }),
           ],
         ),
       ],
@@ -571,12 +663,20 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
 
   Widget glassCard({required Widget child}) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.07), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white.withOpacity(0.15))),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.white.withOpacity(0.08), Colors.white.withOpacity(0.03)],
+            ),
+            borderRadius: BorderRadius.circular(24), 
+            border: Border.all(color: Colors.white.withOpacity(0.12), width: 0.8),
+          ),
           child: child,
         ),
       ),
