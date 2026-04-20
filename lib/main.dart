@@ -197,7 +197,8 @@ class HistoryPage extends StatelessWidget {
               children: [
                 Text("TOTAL STUDY TIME", style: GoogleFonts.montserrat(fontSize: 11, letterSpacing: 2, color: const Color(0xFF00C3FF), fontWeight: FontWeight.w600)),
                 const SizedBox(height: 10),
-                Text("${(totalMinutesAll ~/ 60)}h ${(totalMinutesAll % 60)}m", style: GoogleFonts.orbitron(fontSize: 34, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1)),
+                // 見やすいフォントに変更済み
+                Text("${(totalMinutesAll ~/ 60)}h ${(totalMinutesAll % 60)}m", style: GoogleFonts.jetBrainsMono(fontSize: 34, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1)),
                 const Divider(height: 28, color: Colors.white12),
                 Wrap(
                   spacing: 10, runSpacing: 10,
@@ -224,7 +225,6 @@ class HistoryPage extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       color: Colors.white.withOpacity(0.04),
       elevation: 0,
-      // 修正ポイント: border を side に変更
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14), 
         side: BorderSide(color: Colors.white.withOpacity(0.06)),
@@ -430,9 +430,10 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                                 children: [
                                   Text('TIMER', style: GoogleFonts.montserrat(letterSpacing: 3, fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70)),
                                   const SizedBox(height: 4),
+                                  // 見やすいフォントに変更済み
                                   Text(
                                     '${(elapsedSeconds ~/ 60).toString().padLeft(2, '0')}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
-                                    style: GoogleFonts.orbitron(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
+                                    style: GoogleFonts.jetBrainsMono(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1),
                                   ),
                                 ],
                               ),
@@ -466,7 +467,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                       selectedColor: const Color(0xFF00C3FF),
                       backgroundColor: Colors.white.withOpacity(0.06),
                       showCheckmark: false,
-                      // 修正ポイント: border を side に変更
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20), 
                         side: BorderSide(color: selectedSubject == e.key ? Colors.transparent : Colors.white12, width: 0.5),
@@ -541,7 +541,6 @@ class _StudyTimerPageState extends State<StudyTimerPage> with SingleTickerProvid
                               margin: const EdgeInsets.only(bottom: 8),
                               color: Colors.white.withOpacity(0.04),
                               elevation: 0,
-                              // 修正ポイント: border を side に変更
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14), 
                                 side: BorderSide(color: Colors.white.withOpacity(0.06)),
